@@ -27,7 +27,7 @@ def get_kinesis_client(region: str):
         kinesis_client (boto3.client): Kinesis client
     """
 
-    kinesis_client = boto3.client("kinesis", region_name=region)
+    kinesis_client = boto3.client("kinesis", region_name=AWS_REGION)
     return kinesis_client
 
 
