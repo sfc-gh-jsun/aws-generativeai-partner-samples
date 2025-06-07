@@ -14,6 +14,7 @@ import { Asset } from "aws-cdk-lib/aws-s3-assets";
 import * as sm from "aws-cdk-lib/aws-secretsmanager";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as firehose from "aws-cdk-lib/aws-kinesisfirehose";
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
 
 export interface MainStackProps extends StackProps {
@@ -89,10 +90,15 @@ export class MainStack extends Stack {
             resources: [`arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`]
         }))
 
-        // Create the VPC where MFA will reside
-        const vpc = new Vpc(this, "StreamingVPC", {
-            maxAzs: 2,
-            vpcName: "StreamingVPC",
+        // // Create the VPC where MFA will reside
+        // const vpc = new Vpc(this, "StreamingVPC", {
+        //     maxAzs: 2,
+        //     vpcName: "StreamingVPC",
+        // });
+
+        const vpc = ec2.Vpc.fromLookup(this, 'ExistingVPC', {
+        vpcId: 'vpc-02429af2ce37334c8' // OR use tags like `isDefault: true`
+        // Or use: `tags: { Name: 'MyVpcName' }`
         });
 
         flinkRole.addToPolicy(new PolicyStatement({
@@ -104,7 +110,8 @@ export class MainStack extends Stack {
                 "ec2:DescribeNetworkInterfaces",
                 "ec2:CreateNetworkInterface",
                 "ec2:CreateNetworkInterfacePermission",
-                "ec2:DeleteNetworkInterface"
+                "ec2:DeleteNetworkInterface",
+                "ec2:DescribeVpcs"
             ],
             resources: ["*"]
         }))
