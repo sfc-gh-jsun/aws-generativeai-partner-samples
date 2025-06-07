@@ -1,1 +1,10 @@
 
+{
+  "snowflake": {
+    "secretName": "ADF_secret",
+    "accountUrl": "https://<account>.snowflakecomputing.com",
+    "database": "ADF_PL_DB",
+    "table": "MOVIE_REVIEW_TBL",
+    "schema": "ADF_PL_SCHEMA"
+  }
+}
