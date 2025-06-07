@@ -1,1 +1,5 @@
-
+1. cd aws-generativeai-partner-samples/snowflake/streaming-genai-workshop/cdk
+2. edit cdk.context.json
+3. edit bin/cdk.ts, modify the accountid
+4. npm update
+5. cdk deploy
