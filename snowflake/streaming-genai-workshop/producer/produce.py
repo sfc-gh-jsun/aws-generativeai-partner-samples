@@ -9,11 +9,11 @@ import pandas as pd
 from botocore.exceptions import ClientError
 
 
-DATA_DIR = "<file_path>/data/aclImdb/train/"
+DATA_DIR = "~/aws-streaming-generative-ai-application/movie-data/aclImdb/train/"
 AWS_REGION = "us-west-2"
 STREAM_NAME = "generative-ai-stream"
 BATCH_SIZE = 10
-MOVIE_DATABASE_PATH = "<file_path>/data/aclImdb/train/unsup/IMDB-Movie-Database.xlsx"
+MOVIE_DATABASE_PATH = "~/aws-streaming-generative-ai-application/movie-data/aclImdb/train/unsup/IMDB-Movie-Database.xlsx"
 
 
 def get_kinesis_client(region: str):
