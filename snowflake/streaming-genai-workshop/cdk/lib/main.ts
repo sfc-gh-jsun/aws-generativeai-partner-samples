@@ -15,7 +15,11 @@ import * as sm from "aws-cdk-lib/aws-secretsmanager";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as firehose from "aws-cdk-lib/aws-kinesisfirehose";
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-
+import * as cdk from 'aws-cdk-lib';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as kms from 'aws-cdk-lib/aws-kms';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as cr from 'aws-cdk-lib/custom-resources';
 
 export interface MainStackProps extends StackProps {
     kinesisStreamName: string;
@@ -42,6 +46,127 @@ export class MainStack extends Stack {
 
     constructor(scope: Construct, id: string, props: MainStackProps) {
         super(scope, id, props);
+
+    // Lambda function to generate key pair using Node.js crypto
+    const keyGenFunction = new lambda.Function(this, 'KeyGenFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      timeout: cdk.Duration.minutes(5),
+      code: lambda.Code.fromInline(`
+const crypto = require('crypto');
+
+exports.handler = async (event, context) => {
+    console.log('Event:', JSON.stringify(event));
+
+    const requestType = event.RequestType || '';
+
+    if (requestType === 'Delete') {
+        return {
+            PhysicalResourceId: 'key-generator',
+            Data: {}
+        };
+    }
+
+    try {
+        const passphrase = event.ResourceProperties?.Passphrase || 'snowflake';
+
+        // Generate RSA key pair
+        const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+            modulusLength: 2048,
+            publicKeyEncoding: {
+                type: 'spki',
+                format: 'pem'
+            },
+            privateKeyEncoding: {
+                type: 'pkcs8',
+                format: 'pem',
+                cipher: 'aes-256-cbc',
+                passphrase: passphrase
+            }
+        });
+
+        // Strip header/footer and newlines
+        const stripPem = (pem) =>
+            pem
+                .replace(/-----BEGIN [^-]+-----/, '')
+                .replace(/-----END [^-]+-----/, '')
+                .replace(/\\r?\\n|\\s+/g, '');
+
+        const privateKeyStripped = stripPem(privateKey);
+        const publicKeyStripped = stripPem(publicKey);
+
+        return {
+            PhysicalResourceId: 'key-generator',
+            Data: {
+                PrivateKey: privateKeyStripped,
+                PublicKey: publicKeyStripped,
+                Passphrase: passphrase
+            }
+        };
+
+    } catch (error) {
+        console.error('Error:', error);
+        throw new Error('Key generation failed: ' + error.message);
+    }
+};
+`),
+    });
+
+    // Add permissions for the Lambda function
+    keyGenFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents'
+      ],
+      resources: ['*']
+    }));
+
+    // Custom resource to trigger key generation
+    const keyGenProvider = new cr.Provider(this, 'KeyGenProvider', {
+      onEventHandler: keyGenFunction,
+    });
+
+    const keyGenResource = new cdk.CustomResource(this, 'KeyGenResource', {
+      serviceToken: keyGenProvider.serviceToken,
+      properties: {
+        Passphrase: 'snowflake', // You can make this configurable
+        Timestamp: Date.now() // Force update on each deployment if needed
+      }
+    });
+
+    // Secret Manager ADF keypair Credentials
+    const secret_prefix = 'ADF_';
+
+    // Create the secret with generated key pair
+    const secret = new secretsmanager.Secret(this, 'ADFSecret', {
+      secretName: secret_prefix + 'secret',
+      secretStringValue: cdk.SecretValue.unsafePlainText(
+        JSON.stringify({
+          user: 'adf_pl_user',
+          // user: 'GCP_STREAMING_USER',
+          private_key: keyGenResource.getAttString('PrivateKey'),
+          key_passphrase: keyGenResource.getAttString('Passphrase'),
+          public_key: keyGenResource.getAttString('PublicKey') // Added public key for completeness
+        })
+      ),
+      // encryptionKey: smkey,
+    });
+
+    // Make sure secret depends on key generation
+    secret.node.addDependency(keyGenResource);
+
+    new cdk.CfnOutput(this, 'ADFSecretName', {
+      value: secret.secretName,
+      description: 'The ADF Secret Name',
+    });
+
+    new cdk.CfnOutput(this, 'GeneratedPublicKey', {
+      value: keyGenResource.getAttString('PublicKey'),
+      description: 'Generated Public Key (Base64 encoded)',
+    });
+
 
         // Create bucket to upload flink application
         const flinkAsset = new Asset(this, "FlinkAsset", {
