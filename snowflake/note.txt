@@ -1,5 +1,12 @@
-1. cd aws-generativeai-partner-samples/snowflake/streaming-genai-workshop/cdk
-2. edit cdk.context.json
-3. edit bin/cdk.ts, modify the accountid
-4. npm update
-5. cdk deploy
+1. deploy CFT 1.bootstrap-ec2-existing-vpc-cft.json
+
+2. connect to the ec2 instance as ssm-user, then:
+    1. cd aws-generativeai-partner-samples/snowflake/streaming-genai-workshop/cdk
+    2. edit cdk.context.json
+    3. edit bin/cdk.ts, modify the accountid
+    4. npm update
+    5. cdk deploy
+
+
+3. Workshop Studio instructions:
+https://catalog.us-east-1.prod.workshops.aws/workshops/c1f91244-da45-4fc7-8cbe-e4e0a7190262/en-US/set-up-snowflake-worksheet
